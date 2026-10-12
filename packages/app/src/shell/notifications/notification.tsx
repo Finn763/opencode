@@ -1,4 +1,5 @@
 import { createSignal, onCleanup } from "solid-js"
+import { Schema } from "effect"
 import type { SessionError } from "@opencode/schema/session-error"
 import type { SessionInfo } from "@opencode/client/promise"
 import type { ServerSDK } from "@/runtime/server/client"
@@ -6,7 +7,8 @@ import type { Data } from "@opencode/client/solid"
 import { usePlatform } from "@/runtime/platform/platform"
 import { useLanguage } from "@/runtime/i18n/language"
 import { useSettings } from "@/settings/model"
-import { Persist, removePersisted } from "@/runtime/persistence/storage"
+import { Persist, persisted, removePersisted } from "@/runtime/persistence/storage"
+import { Persistence } from "@/runtime/persistence/schema"
 import { playSoundById } from "@/shell/notifications/sound"
 import type { createNotificationCoordinator } from "@/shell/notifications/coordinator"
 import { ServerConnection } from "@/runtime/server/registry"
@@ -29,6 +31,15 @@ export function isSessionUnread(session?: Pick<SessionInfo, "time">) {
 
   return time?.idle !== undefined && (time.viewed === undefined || time.idle > time.viewed)
 }
+
+// The list Desktop kept before unread state moved to the server; read once to carry its viewed state over.
+const LegacyNotificationStore = Persistence.struct({
+  list: Schema.optional(
+    Persistence.array(Persistence.struct({ session: Schema.optional(Schema.String), viewed: Schema.Boolean })),
+  ),
+})
+
+const LEGACY_MIGRATION_LIMIT = 100
 
 const VIEW_RETRY_DELAY = 250
 
@@ -53,8 +64,32 @@ export function createServerNotificationState(input: {
   let viewRetryAttempt = 0
   onCleanup(() => clearTimeout(viewRetryTimer))
 
-  // Unread state now lives on the server; drop the list this client used to keep.
-  removePersisted(Persist.serverGlobal(input.sdk.scope, "notification"), platform)
+  // Unread state now lives on the server. Desktop never reported views, so the server still holds sessions read here
+  // as unread: mark the most recent ones viewed unless the old list had them unread, then drop the list.
+  // A failed listing keeps the list so the next start retries.
+  const legacyTarget = Persist.serverGlobal(input.sdk.scope, "notification")
+  const [legacy, , , legacyReady] = persisted(legacyTarget, LegacyNotificationStore, {}, platform)
+
+  void Promise.resolve(legacyReady.promise)
+    .then(async () => {
+      const list = legacy.list
+
+      if (list) {
+        const unseen = new Set(list.flatMap((item) => (!item.viewed && item.session ? [item.session] : [])))
+        const page = await input.sdk.api.session.list({ limit: LEGACY_MIGRATION_LIMIT, order: "desc", parentID: null })
+
+        await Promise.allSettled(
+          page.data.flatMap((session) =>
+            session.time.idle !== undefined && isSessionUnread(session) && !unseen.has(session.id)
+              ? [input.sdk.api.session.view({ sessionID: session.id, idle: session.time.idle })]
+              : [],
+          ),
+        )
+      }
+
+      removePersisted(legacyTarget, platform)
+    })
+    .catch(() => undefined)
 
   const unreadRoots = (directory: string) =>
     input.data.session

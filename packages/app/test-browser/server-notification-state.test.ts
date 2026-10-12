@@ -174,3 +174,70 @@ test("unread state and viewing follow the server's idle and viewed watermarks", 
   ])
   dispose.dispose()
 })
+
+test("carries the old local list's viewed state to the server once, then deletes the list", async () => {
+  const key = "opencode.global.dat:notification"
+  const lists: unknown[] = []
+  const views: unknown[] = []
+
+  localStorage.setItem(
+    key,
+    JSON.stringify({
+      list: [
+        { type: "turn-complete", time: 1, viewed: true, session: "read-here" },
+        { type: "turn-complete", time: 2, viewed: false, session: "unread-here" },
+      ],
+    }),
+  )
+
+  const start = () =>
+    createRoot((dispose) => {
+      createServerNotificationState({
+        key: server,
+        sdk: {
+          scope: ServerScope.local,
+          event: { listen: () => () => {} },
+          api: {
+            session: {
+              list: async (input: unknown) => {
+                lists.push(input)
+
+                return {
+                  data: [
+                    { id: "read-here", time: { idle: 5 } },
+                    { id: "unread-here", time: { idle: 6 } },
+                    { id: "untracked", time: { idle: 7, viewed: 3 } },
+                    { id: "viewed", time: { idle: 4, viewed: 4 } },
+                    { id: "never-ran", time: {} },
+                  ],
+                }
+              },
+              view: async (input: unknown) => {
+                views.push(input)
+              },
+            },
+          },
+        } as unknown as ServerSDK,
+        data: { session: {} } as unknown as Data,
+        coordinator: {},
+      } as Parameters<typeof createServerNotificationState>[0])
+
+      return dispose
+    })
+
+  // Sessions the old list still had unread stay unread; every other unread recent session is marked viewed.
+  start()
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  expect(lists).toEqual([{ limit: 100, order: "desc", parentID: null }])
+  expect(views).toEqual([
+    { sessionID: "read-here", idle: 5 },
+    { sessionID: "untracked", idle: 7 },
+  ])
+  expect(localStorage.getItem(key)).toBeNull()
+
+  // Without the old list, later starts never touch the server's viewed state.
+  start()
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  expect(lists).toHaveLength(1)
+  expect(views).toHaveLength(2)
+})
