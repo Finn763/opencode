@@ -1,4 +1,4 @@
-import { onCleanup } from "solid-js"
+import { createSignal, onCleanup } from "solid-js"
 import type { SessionError } from "@opencode/schema/session-error"
 import type { SessionInfo } from "@opencode/client/promise"
 import type { ServerSDK } from "@/runtime/server/client"
@@ -30,6 +30,10 @@ export function isSessionUnread(session?: Pick<SessionInfo, "time">) {
   return time?.idle !== undefined && (time.viewed === undefined || time.idle > time.viewed)
 }
 
+const VIEW_RETRY_DELAY = 250
+
+const VIEW_RETRY_MAX_DELAY = 5_000
+
 export function createServerNotificationState(input: {
   sdk: ServerSDK
   data: Data
@@ -43,6 +47,11 @@ export function createServerNotificationState(input: {
   const disposed = { value: false }
   // Idle watermarks already reported per root session, so reactive re-runs don't re-post them.
   const acknowledged = new Map<string, number>()
+  // A failed view report re-runs the tracking caller with backoff, like the TUI.
+  const [viewRetry, setViewRetry] = createSignal(0)
+  let viewRetryTimer: ReturnType<typeof setTimeout> | undefined
+  let viewRetryAttempt = 0
+  onCleanup(() => clearTimeout(viewRetryTimer))
 
   // Unread state now lives on the server; drop the list this client used to keep.
   removePersisted(Persist.serverGlobal(input.sdk.scope, "notification"), platform)
@@ -59,16 +68,33 @@ export function createServerNotificationState(input: {
       )
 
   const view = (sessionID: string) => {
+    viewRetry()
     const root = input.data.session.root(sessionID)
     const session = input.data.session.get(root)
     const idle = session?.time.idle
 
     if (idle === undefined || !isSessionUnread(session) || acknowledged.get(root) === idle) return
     acknowledged.set(root, idle)
-    void input.sdk.api.session.view({ sessionID: root, idle }).catch(() => {
-      // Forget the watermark so the next view attempt retries it.
-      if (acknowledged.get(root) === idle) acknowledged.delete(root)
-    })
+    void input.sdk.api.session.view({ sessionID: root, idle }).then(
+      () => {
+        clearTimeout(viewRetryTimer)
+        viewRetryTimer = undefined
+        viewRetryAttempt = 0
+      },
+      () => {
+        if (acknowledged.get(root) !== idle) return
+        acknowledged.delete(root)
+
+        if (viewRetryTimer) return
+
+        const delay = Math.min(VIEW_RETRY_DELAY * 2 ** viewRetryAttempt, VIEW_RETRY_MAX_DELAY)
+        viewRetryAttempt++
+        viewRetryTimer = setTimeout(() => {
+          viewRetryTimer = undefined
+          setViewRetry((value) => value + 1)
+        }, delay)
+      },
+    )
   }
 
   // Loading the session keeps a background completion visible in the server-derived unread state.

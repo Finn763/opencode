@@ -1,5 +1,5 @@
 import { beforeAll, expect, mock, test } from "bun:test"
-import { createRoot } from "solid-js"
+import { createEffect, createRoot } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { ServerSDK } from "@/runtime/server/client"
 import type { Data } from "@opencode/client/solid"
@@ -15,7 +15,7 @@ const alerts: string[] = []
 
 const tabs: { store: Tab[] } = { store: [] }
 
-let createServerNotificationState: typeof import("./notification").createServerNotificationState
+let createServerNotificationState: typeof import("@/shell/notifications/notification").createServerNotificationState
 
 beforeAll(async () => {
   const { sessionIDHasOpenTab } = await import("@/shell/tabs/tabs")
@@ -38,7 +38,7 @@ beforeAll(async () => {
     useTabs: () => tabs,
     sessionIDHasOpenTab,
   }))
-  createServerNotificationState = (await import("./notification")).createServerNotificationState
+  createServerNotificationState = (await import("@/shell/notifications/notification")).createServerNotificationState
 })
 
 test.each([
@@ -99,7 +99,7 @@ test("unread state and viewing follow the server's idle and viewed watermarks", 
     location: { directory: string }
   }
 
-  const [store, setStore] = createStore<{ sessions: Record<string, Info> }>({
+  const [store, setStore] = createStore<{ viewing?: string; sessions: Record<string, Info> }>({
     sessions: {
       root: { id: "root", time: { idle: 2, viewed: 1 }, location: { directory: "/project" } },
       child: { id: "child", parentID: "root", time: { idle: 5 }, location: { directory: "/project" } },
@@ -135,6 +135,11 @@ test("unread state and viewing follow the server's idle and viewed watermarks", 
       coordinator: {},
     } as Parameters<typeof createServerNotificationState>[0])
 
+    // Mirrors the session route, which re-runs markViewed whenever what it reads changes.
+    createEffect(() => {
+      if (store.viewing) state.session.markViewed(store.viewing)
+    })
+
     return { dispose, state }
   })
 
@@ -144,11 +149,11 @@ test("unread state and viewing follow the server's idle and viewed watermarks", 
   expect(["root", "child", "read", "other"].map((id) => state.session.unread(id))).toEqual([true, true, false, true])
   expect(state.project.hasUnread("/project")).toBe(true)
 
-  // Viewing a child acknowledges its root's idle watermark; a failed report retries on the next view.
-  state.session.markViewed("child")
+  // Viewing a child acknowledges its root's idle watermark; a failed report retries after a backoff.
+  setStore("viewing", "child")
   await new Promise((resolve) => setTimeout(resolve, 0))
-  state.session.markViewed("root")
-  state.session.markViewed("root")
+  expect(views).toEqual([{ sessionID: "root", idle: 2 }])
+  await new Promise((resolve) => setTimeout(resolve, 300))
   expect(views).toEqual([
     { sessionID: "root", idle: 2 },
     { sessionID: "root", idle: 2 },
@@ -158,7 +163,7 @@ test("unread state and viewing follow the server's idle and viewed watermarks", 
   expect(state.session.unread("root")).toBe(false)
   expect(state.project.hasUnread("/project")).toBe(false)
 
-  // A newer turn makes the root unread again and reports the new watermark.
+  // A newer turn while the session stays open makes it unread and reports the new watermark once.
   setStore("sessions", "root", "time", "idle", 6)
   expect(state.session.unread("root")).toBe(true)
   state.project.markViewed("/project")
