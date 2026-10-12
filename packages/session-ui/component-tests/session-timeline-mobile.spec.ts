@@ -21,7 +21,6 @@ story.describe("touch timeline", () => {
     await expect(timeline.locator('[data-slot="user-message-meta"]')).toContainText("Build")
     await expect(timeline.locator('[data-slot="user-message-meta-tail"]')).not.toBeEmpty()
     await expect(timeline.locator('[data-slot="text-part-meta"]')).toContainText("Build")
-    await expect(timeline.locator('[data-slot="text-part-meta"]')).toContainText("Sonnet")
   })
 
   story("keeps shell copy visible without hover", async ({ mount }) => {

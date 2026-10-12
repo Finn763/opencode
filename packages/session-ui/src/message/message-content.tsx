@@ -1,6 +1,5 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, Show, type ComponentProps, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
-import { useData } from "../context"
 import { useDialog } from "@opencode/ui/context/dialog"
 import { useI18n } from "@opencode/ui/context/i18n"
 import { Markdown } from "../components/markdown"
@@ -55,21 +54,6 @@ export async function writeClipboard(text: string): Promise<boolean> {
     () => true,
     () => false,
   )
-}
-
-function modelLabel(
-  data: ReturnType<typeof useData>,
-  i18n: ReturnType<typeof useI18n>,
-  model: SessionMessageAssistant["model"],
-) {
-  const name = data.store.provider?.all?.get(model.providerID)?.models?.[model.id]?.name ?? model.id
-
-  if (!model.variant || model.variant === "default") return name
-
-  return i18n.t("ui.message.modelVariant", {
-    model: name,
-    variant: model.variant[0]?.toUpperCase() + model.variant.slice(1),
-  })
 }
 
 function MessageActionButton(
@@ -250,12 +234,10 @@ export function CurrentUserMessageDisplay(props: {
   message: SessionMessageUser
   text: string
   agent: string
-  model: SessionMessageAssistant["model"]
   actions?: SessionUserActions
   comments?: SessionUserComment[]
   references?: SessionUserAttachmentReference[]
 }) {
-  const data = useData()
   const dialog = useDialog()
   const i18n = useI18n()
   const [state, setState] = createStore({ copied: false, reverting: false, updating: false })
@@ -267,13 +249,12 @@ export function CurrentUserMessageDisplay(props: {
   const inlineFiles = createMemo(() => (props.message.files ?? []).filter((file) => !!file.mention))
   const agents = createMemo(() => props.message.agents ?? [])
   const comments = createMemo(() => props.comments ?? [])
-  const model = createMemo(() => modelLabel(data, i18n, props.model))
   const timefmt = createMemo(() => new Intl.DateTimeFormat(i18n.locale(), { timeStyle: "short" }))
 
   const metaHead = createMemo(() => {
     const agent = props.agent
 
-    return [waiting() ? i18n.t("ui.message.pending") : "", agent ? agent[0]?.toUpperCase() + agent.slice(1) : "", model()]
+    return [waiting() ? i18n.t("ui.message.pending") : "", agent ? agent[0]?.toUpperCase() + agent.slice(1) : ""]
       .filter(Boolean)
       .join("\u00A0\u00B7\u00A0")
   })
@@ -606,7 +587,6 @@ export function AssistantTextContent(props: {
   showCopy: boolean
   turnDurationMs?: number | null
 }) {
-  const data = useData()
   const i18n = useI18n()
   const numfmt = createMemo(() => new Intl.NumberFormat(i18n.locale()))
 
@@ -615,8 +595,6 @@ export function AssistantTextContent(props: {
 
     return !!type && (type.includes("abort") || type.includes("interrupt"))
   }
-
-  const model = createMemo(() => modelLabel(data, i18n, props.message.model))
 
   const duration = createMemo(() => {
     const completed = props.message.time.completed
@@ -646,7 +624,6 @@ export function AssistantTextContent(props: {
 
     return [
       agent ? agent[0]?.toUpperCase() + agent.slice(1) : "",
-      model(),
       duration(),
       interrupted() ? i18n.t("ui.message.interrupted") : "",
     ]

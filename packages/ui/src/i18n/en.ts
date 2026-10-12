@@ -252,7 +252,6 @@ const source = {
   "ui.message.duration.seconds": "{{count}}s",
   "ui.message.duration.minutesSeconds": "{{minutes}}m {{seconds}}s",
   "ui.message.interrupted": "Interrupted",
-  "ui.message.modelVariant": "{{model}} ({{variant}})",
   "ui.sessionTimeline.notice.model": "Model",
   "ui.sessionTimeline.notice.modelSwitched": "Switched to {{model}}",
   "ui.sessionTimeline.notice.agentChanged": "Agent changed",

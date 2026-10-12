@@ -23,7 +23,6 @@ export function SessionUserMessage(props: {
   comments?: SessionUserComment[]
   references?: SessionUserAttachmentReference[]
   historicalAgent: string
-  historicalModel: SessionMessageAssistant["model"]
   actions?: SessionUserActions
 }) {
   return (
@@ -34,7 +33,6 @@ export function SessionUserMessage(props: {
       comments={props.comments}
       references={props.references}
       agent={props.historicalAgent}
-      model={props.historicalModel}
       actions={props.actions}
     />
   )
