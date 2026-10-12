@@ -22,7 +22,6 @@ export function SessionUserMessage(props: {
   displayText?: string
   comments?: SessionUserComment[]
   references?: SessionUserAttachmentReference[]
-  historicalAgent: string
   actions?: SessionUserActions
 }) {
   return (
@@ -32,7 +31,6 @@ export function SessionUserMessage(props: {
       text={props.displayText ?? props.message.text}
       comments={props.comments}
       references={props.references}
-      agent={props.historicalAgent}
       actions={props.actions}
     />
   )

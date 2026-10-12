@@ -18,9 +18,8 @@ story.describe("touch timeline", () => {
       await expect(actions.getByRole("button", { name: action.name, exact: true })).toBeVisible()
     }
 
-    await expect(timeline.locator('[data-slot="user-message-meta"]')).toContainText("Build")
     await expect(timeline.locator('[data-slot="user-message-meta-tail"]')).not.toBeEmpty()
-    await expect(timeline.locator('[data-slot="text-part-meta"]')).toContainText("Build")
+    await expect(timeline.locator('[data-slot="text-part-meta"]')).not.toBeEmpty()
   })
 
   story("keeps shell copy visible without hover", async ({ mount }) => {

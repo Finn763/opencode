@@ -71,7 +71,6 @@ function PreparingSession(props: { sessionID: string; pending: PendingSession })
               sessionID={props.sessionID}
               message={props.pending.message}
               comments={readPromptPresentation(props.pending.message.metadata)?.comments}
-              historicalAgent={props.pending.selection.agent}
             />
             <div
               role="status"

@@ -48,8 +48,6 @@ function lenient<S extends Schema.Top>(schema: S) {
   return Schema.optionalKey(schema.pipe(Schema.catchDecoding(() => Effect.succeedNone)))
 }
 
-const decodeLocalAgent = Schema.decodeUnknownOption(Schema.Struct({ agent: Schema.String }))
-
 const decodeErrorEnvelope = Schema.decodeUnknownOption(
   Schema.Struct({ error: Schema.optionalKey(Schema.Unknown), message: lenient(Schema.String) }),
 )
@@ -108,7 +106,6 @@ export function createTimelineProjection(input: TimelineProjectionInput) {
     rowByKey,
     rows,
     sessionMessageByID,
-    userAgentByID: indexUserAgent(input.sessionMessages),
   }
 }
 
@@ -126,7 +123,6 @@ export function createReactiveTimelineProjection(input: {
     () => new Map(input.sessionMessages().map((message) => [message.id, message] as const)),
   )
 
-  const userAgentByID = createMemo(() => indexUserAgent(input.sessionMessages()))
   const assistantMessagesByParent = createMemo(() => indexAssistantMessages(input.sessionMessages()))
 
   // Row structure depends on the empty/non-empty boundary, not each text delta.
@@ -205,7 +201,6 @@ export function createReactiveTimelineProjection(input: {
     rowByKey,
     rows,
     sessionMessageByID,
-    userAgentByID,
   }
 }
 
@@ -661,36 +656,6 @@ export function reuseTimelineRows(previous: TimelineRow.TimelineRow[] | undefine
   if (previous.length === next.length && previous.every((row, index) => row === next[index])) return previous
 
   return next
-}
-
-function indexUserAgent(messages: SessionMessageInfo[]) {
-  const result = new Map<string, string>()
-  let agent = ""
-  let userID: string | undefined
-
-  messages.forEach((message) => {
-    if (message.type === "agent-switched") agent = message.agent
-
-    if (message.type === "user") {
-      userID = message.id
-      result.set(
-        message.id,
-        Option.match(decodeLocalAgent(message.metadata), {
-          onNone: () => agent,
-          onSome: (local) => local.agent,
-        }),
-      )
-    }
-
-    if (message.type === "shell") userID = undefined
-
-    if (message.type !== "assistant") return
-    agent = message.agent
-
-    if (userID) result.set(userID, agent)
-  })
-
-  return result
 }
 
 function indexAssistantMessages(messages: SessionMessageInfo[]) {

@@ -963,7 +963,7 @@ for (const delivery of ["steer", "queue"] as const) {
       await expect(bubble).toHaveCSS("background-color", colors.pending.background)
       await expect(bubble).toHaveCSS("color", colors.pending.text)
       await pending.hover()
-      await expect(pending.locator('[data-slot="user-message-meta"]')).toHaveText(/^Pending\s*·\s*Build$/)
+      await expect(pending.locator('[data-slot="user-message-meta"]')).toHaveText("Pending")
       await bubble.evaluate((element) => (element.dataset.deliveryMarker = "pending"))
     }
 
@@ -1032,7 +1032,7 @@ for (const delivery of ["steer", "queue"] as const) {
 
     if (colors) {
       await expect(bubble).toHaveAttribute("data-delivery-marker", "pending")
-      await expect(pending.locator('[data-slot="user-message-meta"]')).toHaveText(/^Build$/)
+      await expect(pending.locator('[data-slot="user-message-meta"]')).toHaveCount(0)
       await expect(bubble).toHaveCSS("background-color", colors.delivered.background)
       await expect(bubble).toHaveCSS("color", colors.delivered.text)
       await expect(bubble).toHaveCSS("transition-property", "background-color, color")

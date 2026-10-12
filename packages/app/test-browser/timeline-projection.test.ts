@@ -270,7 +270,6 @@ for (const factory of [createTimelineProjection, createReactiveTimelineProjectio
         )
         verify()
         expect(projection.assistantMessagesByParent().get("user")?.[0].id).toBe("answer")
-        expect(projection.userAgentByID().get("user")).toBe("build")
         setState(
           "messages",
           produce((messages) =>

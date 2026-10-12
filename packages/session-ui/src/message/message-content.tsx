@@ -233,7 +233,6 @@ export function CurrentUserMessageDisplay(props: {
   sessionID: string
   message: SessionMessageUser
   text: string
-  agent: string
   actions?: SessionUserActions
   comments?: SessionUserComment[]
   references?: SessionUserAttachmentReference[]
@@ -251,13 +250,7 @@ export function CurrentUserMessageDisplay(props: {
   const comments = createMemo(() => props.comments ?? [])
   const timefmt = createMemo(() => new Intl.DateTimeFormat(i18n.locale(), { timeStyle: "short" }))
 
-  const metaHead = createMemo(() => {
-    const agent = props.agent
-
-    return [waiting() ? i18n.t("ui.message.pending") : "", agent ? agent[0]?.toUpperCase() + agent.slice(1) : ""]
-      .filter(Boolean)
-      .join("\u00A0\u00B7\u00A0")
-  })
+  const metaHead = createMemo(() => (waiting() ? i18n.t("ui.message.pending") : ""))
 
   const stamp = createMemo(() => timefmt().format(props.message.time.created))
 
@@ -619,17 +612,9 @@ export function AssistantTextContent(props: {
     })
   })
 
-  const meta = createMemo(() => {
-    const agent = props.message.agent
-
-    return [
-      agent ? agent[0]?.toUpperCase() + agent.slice(1) : "",
-      duration(),
-      interrupted() ? i18n.t("ui.message.interrupted") : "",
-    ]
-      .filter(Boolean)
-      .join(" \u00B7 ")
-  })
+  const meta = createMemo(() =>
+    [duration(), interrupted() ? i18n.t("ui.message.interrupted") : ""].filter(Boolean).join(" \u00B7 "),
+  )
 
   const [copied, setCopied] = createSignal(false)
 
