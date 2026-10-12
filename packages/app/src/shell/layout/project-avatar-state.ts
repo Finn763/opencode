@@ -48,9 +48,7 @@ export function useSessionTabAvatarState(
 
   const needsAttention = createMemo(() => hasPermissions() || hasForms())
 
-  const unread = createMemo(
-    () => needsAttention() || (serverCtx()?.notification.session.unseenCount(sessionId()) ?? 0) > 0,
-  )
+  const unread = createMemo(() => needsAttention() || (serverCtx()?.notification.session.unread(sessionId()) ?? false))
 
   const loading = createMemo(() => {
     const data = serverCtx()?.data
