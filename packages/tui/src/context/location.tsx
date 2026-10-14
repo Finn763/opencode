@@ -33,6 +33,7 @@ export function createLocation(input: {
   const [ref, setRef] = createSignal<LocationRef>()
   const [error, setError] = createSignal<{ readonly location: LocationRef; readonly cause: unknown }>()
   let generation = 0
+  let disposed = false
   const current = createMemo(() => input.data.location.info(ref()))
 
   async function settle(location: LocationRef, attempt: number, target: LocationRef | undefined) {
@@ -41,21 +42,24 @@ export function createLocation(input: {
         await input.data.location.sync(target)
         return
       } catch (cause) {
-        const at = ref()
-        if (
-          generation !== attempt ||
-          at?.directory !== location.directory ||
-          at.workspaceID !== location.workspaceID
-        )
-          return
+        if (!active(location, attempt)) return
         if (remaining > 0) {
           await new Promise((resolve) => setTimeout(resolve, input.delay ?? RETRY_DELAY))
+          // A sync that was superseded while backing off must not fire another round.
+          if (!active(location, attempt)) return
           continue
         }
         setError({ location, cause })
         return
       }
     }
+  }
+
+  // Whether this attempt still owns the target location and the provider is alive.
+  function active(location: LocationRef, attempt: number) {
+    if (disposed) return false
+    const at = ref()
+    return generation === attempt && at?.directory === location.directory && at.workspaceID === location.workspaceID
   }
 
   function sync(location?: LocationRef) {
@@ -75,6 +79,9 @@ export function createLocation(input: {
     if (input.connection.status() === "connected") sync(location)
   }
 
+  onCleanup(() => {
+    disposed = true
+  })
   onCleanup(input.event.on("server.connected", () => sync(ref())))
 
   return {

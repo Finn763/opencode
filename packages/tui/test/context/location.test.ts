@@ -8,6 +8,14 @@ import { createApi, createFetch, directory } from "../fixture/tui-client"
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+async function waitFor(check: () => boolean, timeout = 5000) {
+  const start = Date.now()
+  while (!check()) {
+    if (Date.now() - start > timeout) throw new Error("timed out waiting for condition")
+    await sleep(10)
+  }
+}
+
 function setup(options: { failures?: number; delay?: number } = {}) {
   return createRoot((dispose) => {
     const events = createGlobalEmitter<{
@@ -46,9 +54,8 @@ test("a transient sync failure is retried before the recovery prompt surfaces", 
   const scope = setup({ failures: 1 })
   try {
     scope.location.set({ directory })
-    await sleep(150)
+    await waitFor(() => scope.vcsCalls() >= 2)
     expect(scope.location.error).toBeUndefined()
-    expect(scope.vcsCalls()).toBeGreaterThanOrEqual(2)
   } finally {
     scope.dispose()
   }
@@ -58,7 +65,7 @@ test("a persistent sync failure still surfaces the location error", async () => 
   const scope = setup({ failures: 99 })
   try {
     scope.location.set({ directory })
-    await sleep(250)
+    await waitFor(() => scope.location.error !== undefined)
     expect(scope.location.error?.location.directory).toBe(directory)
   } finally {
     scope.dispose()
