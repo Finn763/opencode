@@ -645,6 +645,36 @@ describe("ConfigNormalize", () => {
     expect(result.encoded.providers).not.toHaveProperty(["untouched", "compatibility"])
   })
 
+  test("keeps an explicit compatibility block on a legacy provider", () => {
+    const result = normalized({
+      provider: {
+        acme: {
+          npm: "@ai-sdk/openai-compatible",
+          compatibility: { reasoningField: "reasoning_content" },
+          models: { "glm-5.2": {} },
+        },
+      },
+    })
+    expect(result.encoded.providers).toMatchObject({
+      acme: { compatibility: { reasoningField: "reasoning_content" } },
+    })
+  })
+
+  test("merges an explicit legacy compatibility block over the setCacheKey derivation", () => {
+    const result = normalized({
+      provider: {
+        acme: {
+          npm: "@ai-sdk/openai-compatible",
+          options: { setCacheKey: true },
+          compatibility: { reasoningField: "reasoning_content" },
+        },
+      },
+    })
+    expect(result.encoded.providers).toMatchObject({
+      acme: { compatibility: { reasoningField: "reasoning_content", supportsPromptCacheKey: true } },
+    })
+  })
+
   test("invalid legacy provider overlays skip only that provider", () => {
     const result = normalized({
       provider: {

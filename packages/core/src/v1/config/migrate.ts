@@ -113,11 +113,16 @@ function migrateStandardProvider(info: ConfigProviderV1.Info) {
   // V1 `setCacheKey` toggled `prompt_cache_key` for the whole provider; it is not a provider package setting.
   const { setCacheKey, ...rest } = info.options ?? {}
   const options = ConfigProviderOptionsV1.provider(rest)
+  // An explicit `compatibility` block keeps its fields; the legacy setCacheKey derivation fills the rest.
+  const compatibility = {
+    ...(setCacheKey === undefined ? {} : { supportsPromptCacheKey: setCacheKey }),
+    ...info.compatibility,
+  }
   return {
     name: info.name,
     env: info.env,
     package: info.npm ? packageSpecifier(info.npm) : undefined,
-    compatibility: setCacheKey === undefined ? undefined : { supportsPromptCacheKey: setCacheKey },
+    compatibility: Object.keys(compatibility).length === 0 ? undefined : compatibility,
     settings: info.api ? { ...options.settings, baseURL: info.api } : info.options ? options.settings : undefined,
     headers: info.options && options.headers,
     body: info.options && options.body,

@@ -1,6 +1,7 @@
 export * as ConfigProviderV1 from "./provider.js"
 
 import { Schema } from "effect"
+import { ProviderCompatibility } from "@opencode/schema/model-compatibility"
 import { PositiveInt } from "../../schema.js"
 
 export const ModelStatus = Schema.Literals(["alpha", "beta", "deprecated", "active"])
@@ -82,6 +83,7 @@ export const Info = Schema.Struct({
   npm: Schema.optional(Schema.String),
   whitelist: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   blacklist: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
+  compatibility: Schema.optional(ProviderCompatibility),
   options: Schema.optional(
     Schema.StructWithRest(
       Schema.Struct({
