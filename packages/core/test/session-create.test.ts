@@ -211,7 +211,7 @@ describe("Session.create", () => {
         })
         expect(aliasAdopted).toMatchObject({
           projectID: project.id,
-          location: aliased,
+          location: nested,
           subpath: RelativePath.make("packages/app"),
         })
         // Adoption is a project-domain fact; the session log records nothing new.
@@ -436,6 +436,19 @@ describe("Session.create", () => {
       const child = yield* session.create({ parentID: parent.id, title: "child" })
 
       expect(child).toMatchObject({ parentID: parent.id, location })
+    }),
+  )
+
+  it.effect("normalizes a location that arrives with dot segments", () =>
+    Effect.gen(function* () {
+      const session = yield* Session.Service
+      const raw = "/project/src/.."
+
+      const created = yield* session.create({
+        location: Location.Ref.make({ directory: AbsolutePath.make(raw) }),
+      })
+
+      expect(created.location.directory).toBe(location.directory)
     }),
   )
 
