@@ -1381,6 +1381,24 @@ describe("SessionTransfer", () => {
     }),
   )
 
+  it.effect("normalizes an imported location that arrives with dot segments", () =>
+    Effect.gen(function* () {
+      const session = yield* Session.Service
+      const transfer = yield* SessionTransfer.Service
+      const template = yield* session.create({ location, title: "Exported" })
+
+      const imported = yield* transfer.import({
+        data: {
+          info: { ...template, id: Session.ID.create() },
+          messages: [],
+        },
+        location: Location.Ref.make({ directory: AbsolutePath.make("/project/src/..") }),
+      })
+
+      expect(imported.location.directory).toBe(location.directory)
+    }),
+  )
+
   it.effect("imports projected messages and reserves their aggregate sequence", () =>
     Effect.gen(function* () {
       const session = yield* Session.Service
