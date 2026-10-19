@@ -13,12 +13,16 @@ describe("inlineCodeKind", () => {
     "console.log",
     "Dockerfile",
     "Makefile:12",
+    "C:\\Program Files\\app\\file.txt",
+    "my docs/notes.md",
+    "./My Folder/README.md",
   ])("treats %s as a possible path", (text) => {
     expect(inlineCodeKind(text)).toBe("path")
   })
 
   test.each([
     "value",
+    "hello world",
     "readme",
     "1.2.3",
     "127.0.0.1:8080",
