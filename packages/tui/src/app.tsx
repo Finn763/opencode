@@ -6,12 +6,12 @@ import { Effect, Latch } from "effect"
 import { Service, type Endpoint } from "@opencode/client/effect/service"
 import { OpenCode, type SessionInfo } from "@opencode/client"
 import { Global } from "@opencode/util/global"
+import { noTimeoutFetch } from "@opencode/util/no-timeout-fetch"
 import { ClipboardProvider, useClipboard } from "./context/clipboard"
 import { LogProvider, type LogSink } from "./context/log"
 import { ExitProvider, useExit } from "./context/exit"
 import { EpilogueProvider } from "./context/epilogue"
 import { Selection } from "./util/selection"
-import { noTimeoutFetch } from "./util/no-timeout-fetch"
 import {
   CliRenderEvents,
   createCliRenderer,
@@ -212,7 +212,11 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
   const config = Config.resolve(yield* Effect.tryPromise(() => input.config.get()), {
     terminalSuspend: process.platform !== "win32",
   })
-  const options = { baseUrl: input.server.endpoint.url, headers: Service.headers(input.server.endpoint), fetch: noTimeoutFetch }
+  const options = {
+    baseUrl: input.server.endpoint.url,
+    headers: Service.headers(input.server.endpoint),
+    fetch: noTimeoutFetch,
+  }
   const api = OpenCode.make(options)
   const location = yield* Effect.tryPromise(() => api.file.list({ location: { directory: process.cwd() } })).pipe(
     Effect.map((response) => response.location),
