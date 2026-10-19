@@ -2,6 +2,7 @@ import { describe, expect } from "bun:test"
 import { Message, ToolFailure } from "@opencode/ai"
 import { DateTime, Effect, Option, Stream, Types } from "effect"
 import type { SessionContext } from "@opencode/plugin/effect/session"
+import type { PermissionEvaluation } from "@opencode/plugin/effect/permission"
 import type { ToolHooks } from "@opencode/plugin/effect/tool"
 import { Agent } from "@opencode/core/agent"
 import { Environment } from "@opencode/core/environment/index"
@@ -39,6 +40,7 @@ const run = Effect.fnUntraced(function* (events: ReadonlyArray<SessionEvent.Agen
   const persisted = new Array<string>()
   let contextHook: ((input: SessionContext) => Effect.Effect<void>) | undefined
   let toolHook: ((input: ToolHooks["execute.after"]) => Effect.Effect<void>) | undefined
+  let permissionHook: ((input: PermissionEvaluation) => Effect.Effect<void>) | undefined
   const defaults = Agent.Info.default(plan)
   const planAgent = {
     ...defaults,
@@ -80,6 +82,18 @@ const run = Effect.fnUntraced(function* (events: ReadonlyArray<SessionEvent.Agen
       event: {
         subscribe: () => Stream.fromIterable(events),
       },
+      permission: {
+        hook: (name, callback) => {
+          if (name === "evaluate") {
+            permissionHook = callback as (input: PermissionEvaluation) => Effect.Effect<void>
+          }
+          return Effect.succeed({ dispose: Effect.void })
+        },
+        list: () => Effect.die("unused permission.list"),
+        get: () => Effect.die("unused permission.get"),
+        reply: () => Effect.die("unused permission.reply"),
+        assert: () => Effect.die("unused permission.assert"),
+      },
       session: {
         hook: (name, callback) => {
           if (name === "context") contextHook = callback as (input: SessionContext) => Effect.Effect<void>
@@ -109,7 +123,8 @@ const run = Effect.fnUntraced(function* (events: ReadonlyArray<SessionEvent.Agen
   )
   if (!contextHook) return yield* Effect.die("plan plugin did not register a context hook")
   if (!toolHook) return yield* Effect.die("plan plugin did not register a tool hook")
-  return { persisted, contextHook, toolHook, files: Environment.makeFiles(driver), planAgent }
+  if (!permissionHook) return yield* Effect.die("plan plugin did not register a permission hook")
+  return { persisted, contextHook, toolHook, permissionHook, files: Environment.makeFiles(driver), planAgent }
 })
 
 const request = (agent: Agent.ID, messages: Array<Message>): SessionContext => ({
@@ -296,6 +311,32 @@ describe("plan plugin mutations", () => {
       const event = toolError("edit", error)
       yield* toolHook(event)
       expect(event.error).toBe(error)
+    }),
+  )
+
+  it.effect("keeps the read-only boundary when configured permissions append a broad allow", () =>
+    Effect.gen(function* () {
+      const { permissionHook } = yield* run()
+      const evaluation = (resources: string[], agent: Agent.ID = plan): PermissionEvaluation => ({
+        sessionID,
+        agent,
+        action: "edit",
+        resources,
+        effect: "allow",
+      })
+
+      const outside = evaluation(["/workspace/source.ts"])
+      yield* permissionHook(outside)
+      expect(outside.effect).toBe("deny")
+      expect(outside.message).toContain("outside the Plan directory")
+
+      const inside = evaluation([path.join(planDirectory, "work.md")])
+      yield* permissionHook(inside)
+      expect(inside.effect).toBe("allow")
+
+      const other = evaluation(["/workspace/source.ts"], build)
+      yield* permissionHook(other)
+      expect(other.effect).toBe("allow")
     }),
   )
 })

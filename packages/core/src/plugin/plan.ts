@@ -8,6 +8,7 @@ import { Global } from "@opencode/util/global"
 import { Effect, Stream } from "effect"
 import path from "path"
 import { Permission } from "../permission.js"
+import { Wildcard } from "../util/wildcard.js"
 
 const plan = Agent.ID.make("plan")
 
@@ -40,6 +41,19 @@ export const Plugin = define({
         item.permissions.push({ action: "edit", resource: path.join(directory, "*"), effect: "allow" })
       })
     })
+
+    // Configured permissions are appended after the built-in rules above and evaluation takes the
+    // last match, so a broad `edit: allow` from user config would silently defeat Plan mode.
+    // Enforce the read-only boundary after the configured effect has been computed.
+    const allowed = path.join(directory, "*")
+    yield* ctx.permission.hook("evaluate", (event) =>
+      Effect.sync(() => {
+        if (event.agent !== plan || event.action !== "edit" || event.effect === "deny") return
+        if (!event.resources.some((resource) => !Wildcard.match(resource, allowed))) return
+        event.effect = "deny"
+        event.message = `Cannot modify files outside the Plan directory: ${directory}`
+      }),
+    )
 
     yield* ctx.tool.hook("execute.after", (event) => {
       if (event.agent !== plan) return Effect.void
