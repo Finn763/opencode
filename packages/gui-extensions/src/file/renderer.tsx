@@ -502,6 +502,22 @@ const setup: Setup<typeof File> = (ctx) => {
   }
 
   // Messages style a path as a link only when this says the file exists.
+  // Listing a directory answers both the linkify check and the click, so reuse it per session and path.
+  const kinds = new Map<string, "file" | "directory" | undefined>()
+  const kindOf = (
+    files: { readonly root: string; kind(path: string): Promise<"file" | "directory" | undefined> },
+    path: string,
+  ): Promise<"file" | "directory" | undefined> => {
+    const key = `${files.root} ${path}`
+    if (kinds.has(key)) return Promise.resolve(kinds.get(key))
+
+    return files.kind(path).then((kind) => {
+      kinds.set(key, kind)
+
+      return kind
+    })
+  }
+
   const linkExists = (link: Link): boolean | Promise<boolean> => {
     const session = sessions.current()
     const files = ctx.screen.current()?.file
@@ -516,7 +532,7 @@ const setup: Setup<typeof File> = (ctx) => {
         const path = parseFileLink(link.href).path
         const direct = path.startsWith("//") || path.startsWith("~") ? undefined : resolve(files, path, link.base)
 
-        return direct ? files.kind(direct).then((kind) => kind !== undefined) : false
+        return direct ? kindOf(files, direct).then((kind) => kind !== undefined) : false
       })
       .catch(() => false)
   }
@@ -567,7 +583,7 @@ const setup: Setup<typeof File> = (ctx) => {
 
         // A directory has no tab to open: reveal it in the file tree instead of loading it as a file,
         // which would fail with a not-found toast.
-        if ((await files.kind(targetPath)) === "directory") {
+        if ((await kindOf(files, targetPath)) === "directory") {
           const latest = stillCurrent()
 
           if (!latest) return
