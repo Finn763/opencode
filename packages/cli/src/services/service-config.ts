@@ -45,10 +45,11 @@ export function filename(channel = OPENCODE_CHANNEL) {
 
 export function defaultPort(channel = OPENCODE_CHANNEL, platform = process.platform) {
   const port = channelPort(channel)
-  // Windows hands out 0xC000-0xFFFF for outgoing connections, and Hyper-V and WinNAT reserve blocks of that range at
-  // boot, so a port there can fail as in use while nothing listens on it. Moving into the 0xB000 block keeps the low
-  // 12 bits: 0xC0DE becomes 0xB0DE, which is 0xC0DE - 4096, a nod to the v1 port.
-  if (platform === "win32" && port >= 0xc000) return 0xb000 | (port & 0xfff)
+  // Windows hands out 0x8000-0xFFFF for outgoing connections, and Hyper-V, WinNAT and WSL2 mirrored networking reserve
+  // blocks of that range at boot, so a port there can fail as in use while nothing listens on it (45278 sits inside a
+  // running WSL2 range). Moving everything from 0x8000 up into the 0x7000 block keeps the low 12 bits and stays below
+  // every ephemeral range: 0xC0DE becomes 0x70DE.
+  if (platform === "win32" && port >= 0x8000) return 0x7000 | (port & 0xfff)
   return port
 }
 
